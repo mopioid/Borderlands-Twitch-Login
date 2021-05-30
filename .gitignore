@@ -1,0 +1,5 @@
+
+TwitchLogin/.vscode
+__pycache__/
+TwitchLogin/logging.log
+TwitchLogin/settings.json
