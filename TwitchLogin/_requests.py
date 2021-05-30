@@ -30,6 +30,8 @@ def Request(
     API will respond to the request with an error.
 
     Arguments:
+        Method:
+            The method to use for sending the request. This can be GET, POST, PUT, PATCH, or DELETE.
         Path:
             The path in the Twitch API URL to send the request. This should be the entire path
             after "/helix/"; for example, specfying "channel_points/custom_rewards" causes the

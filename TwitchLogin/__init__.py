@@ -52,7 +52,7 @@ def RegisterMod(mod: ModMenu.SDKMod) -> None:
 
     The mod may optionally define a `TwitchTopics` attribute, containing a mapping of strings to
     callables. The strings serving as keys represent topics in the Twitch PubSub API. See:
-    https://dev.twitch.tv/docs/authentication#scopes
+    https://dev.twitch.tv/docs/pubsub#topics
 
     Topic strings may optionally include the format token `{UserID}`. If it does, the token will be
     replaced with the user ID (A.K.A. channel ID) of the user's Twitch account when listening for
@@ -390,7 +390,12 @@ def _handle_pubsub_message(topic: str, data: Dict[str, Any]) -> None:
     listening for receives a message.
     """
     for mod in _registered_topics[topic]:
-        mod.TwitchTopics[topic](data)
+        try: mod.TwitchTopics[topic](data)
+        except:
+            log.error(
+                "Mod %s raised an exception in its callback for topic %s",
+                mod, topic, exc_info=True
+            )
 
 
 class TwitchLogin(ModMenu.SDKMod):

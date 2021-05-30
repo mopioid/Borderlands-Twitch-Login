@@ -22,7 +22,7 @@ log: logging.Logger = logging.getLogger("TwitchLogin")
 log.propagate = False
 
 # Module-wide logging level may be assigned here:
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 # Log messages should begin with the logger name, followed by the time, including seconds to three
 # decimal places.
