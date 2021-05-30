@@ -73,10 +73,14 @@ def RegisterMod(mod: ModMenu.SDKMod) -> None:
     """
     log.info("Registering mod %s", mod)
 
-    _registered_mods.add(mod)
-
     _register_mod_scopes(mod)
     _register_mod_topics(mod)
+
+    _registered_mods.add(mod)
+
+    # If we are currently logged in as per having an authorization token, notify the mod.
+    if _authorization.Token is not None:
+        _notify_mod_of_login(mod, True)
 
 
 def UnregisterMod(mod: ModMenu.SDKMod):
@@ -88,16 +92,27 @@ def UnregisterMod(mod: ModMenu.SDKMod):
     """
     log.info("Unregistering mod %s", mod)
 
+    if mod not in _registered_mods:
+        return
+
     _registered_mods.remove(mod)
+
+    unregistered_scopes = set()
+    unregistered_topics = set()
 
     # Iterate over each scope in our registry that is registered for by this mod.
     for scope, mods in _registered_scopes.items():
         if mod in mods:
             # Remove the mod from the set of registering mods.
             mods.remove(mod)
-            # If there are no more mods registering this scope, remove it from the registry.
+            # If there are no more mods registering this scope, we will remove it from the registry.
             if len(mods) == 0:
-                del _registered_scopes[scope]
+                unregistered_scopes.add(scope)
+
+    # Remove each scope from the registry that had no remaining mods registering it.
+    for scope in unregistered_scopes:
+        if scope in _registered_scopes:
+            del _registered_scopes[scope]
 
     # Iterate over each scope in our registry that is registered for by this mod.
     for topic, mods in _registered_topics.items():
@@ -106,8 +121,13 @@ def UnregisterMod(mod: ModMenu.SDKMod):
             mods.remove(mod)
             # If there are no more mods registering this scope, remove it from the registry.
             if len(mods) == 0:
-                del _registered_scopes[scope]
-                _pubsub.CloseTopic(topic)
+                unregistered_topics.add(scope)
+
+    # Close and remove each topic from the registry that had no remaining mods registering it.
+    for topic in unregistered_topics:
+        _pubsub.CloseTopic(topic)
+        if topic in _registered_topics:
+            del _registered_topics[topic]
 
 
 def RegisterWhileEnabled(cls: Type[ModMenu.SDKMod]) -> Type[ModMenu.SDKMod]:
@@ -260,6 +280,17 @@ def _register_mod_topics(mod: ModMenu.SDKMod) -> None:
             _pubsub.OpenTopic(topic)
 
 
+def _notify_mod_of_login(mod: ModMenu.SDKMod, logged_in: bool) -> None:
+    """Invoke the TwitchLoginChanged method for the given mod, if it defines one."""
+    if not hasattr(mod, "TwitchLoginChanged"):
+        log.debug("No TwitchLoginChanged for mod %s", mod)
+        return
+
+    try: mod.TwitchLoginChanged(logged_in)
+    except:
+        log.error("Exception while invoking TwitchLoginChanged for mod %s", mod, exc_info=True)
+
+
 def _DisplayGameMessage(message: str, subtitle: str, duration: float = 5) -> None:
     """Display a small UI message (in the same place as Steam connection messages, for example)."""
     unrealsdk.GetEngine().GamePlayers[0].Actor.DisplayGameMessage(
@@ -267,24 +298,12 @@ def _DisplayGameMessage(message: str, subtitle: str, duration: float = 5) -> Non
     )
 
 
-def _notify_mods_of_login(logged_in: bool) -> None:
-    """Invoke the TwitchLoginChanged method for each registered mod that defines one."""
-    for mod in _registered_mods:
-        if not hasattr(mod, "TwitchLoginChanged"):
-            log.debug("No TwitchLoginChanged for mod %s", mod)
-            continue
-
-        try: mod.TwitchLoginChanged(logged_in)
-        except:
-            log.error("Exception while invoking TwitchLoginChanged for mod %s", mod, exc_info=True)
-
-
 def _handle_validation() -> None:
     """
     The callback we provide to our authorization framework, to be invoked each time the user's
     authentication state changes.
     """
-    global Token, Scopes, UserName, UserID
+    global Token, Scopes, UserName, UserID, _mods_missing_permissions
 
     # Update our local copies of the authorization-related variables, such that they are
     # accessible from the top level of this module.
@@ -301,39 +320,49 @@ def _handle_validation() -> None:
     # If we are now logged out as evidence by not having an authentication token, we will present a
     # relevant message to the user, and update our status in the mod menu accordingly.
     if _authorization.Token is None:
+        log.debug("Validation callback invoked with no token")
+
         # If the previous token had expired, indicate as such.
         if 0.0 < _authorization.Expiration < time.time():
+            log.debug("Previous token had expired")
             _mod_instance.LoginExpired()
 
         # If the last validation request's status code indicates an authorization error,
         # indicate as such.
         elif 400 <= _authorization.ValidationStatus <= 499:
+            log.debug("Previous token was not authorized")
             _DisplayGameMessage(
                 "Twitch Login Error",
                 "Please log in again to continue using mods with Twitch features"
             )
             _mod_instance.LoggedOut()
 
-        # If the last validation request's received a server error, indicate as such.
-        elif 500 <= _authorization.ValidationStatus <= 599:
-            _mod_instance.ConnectionFailed()
-
+        else:
+            _mod_instance.LoggedOut()
 
         # Shutdown each PubSub topic we may be listening for.
         for topic in _registered_topics:
             _pubsub.CloseTopic(topic)
 
         # Notify our registered mods that we are now not logged in.
-        _notify_mods_of_login(False)
+        for mod in _registered_mods:
+            _notify_mod_of_login(mod, False)
 
     else:
+        log.debug("Validation callback invoked with token")
+
+        # If the last validation request's received a server error, indicate as such.
+        if 500 <= _authorization.ValidationStatus <= 599:
+            log.debug("Validation failed to connect to Twitch")
+            _mod_instance.ConnectionFailed()
+            return
+
         # If we are now logged in, first reset our set of mods that are missing permissions.
-        global _mods_missing_permissions
         _mods_missing_permissions = set()
 
         # Iterate over each scope mods requested authorization for. If any is missing from the
         # scopes authorized by Twitch, add the requesting mods to the ones missing permissions.
-        for scope, mods in _registered_scopes:
+        for scope, mods in _registered_scopes.items():
             if scope not in _authorization.Scopes:
                 log.error("Twitch did not authorize for '%s' (requested by %s)", scope, mods)
                 _mods_missing_permissions.update(mods)
@@ -346,12 +375,13 @@ def _handle_validation() -> None:
             _mod_instance.MissingPermissions()
 
         # Start listening for each topic that was requested of us.
-        for topic in _registered_topics:
-            log.info("Registering PubSub topic '%s' for mods %s", topic, mod)
+        for topic, mods in _registered_topics.items():
+            log.info("Registering PubSub topic '%s' for mods %s", topic, mods)
             _pubsub.OpenTopic(topic)
 
-        # Notify each registered mod that we are now logged in.
-        _notify_mods_of_login(True)
+        # Notify our registered mods that we are now logged in.
+        for mod in _registered_mods:
+            _notify_mod_of_login(mod, True)
 
 
 def _handle_pubsub_message(topic: str, data: Dict[str, Any]) -> None:
@@ -360,7 +390,7 @@ def _handle_pubsub_message(topic: str, data: Dict[str, Any]) -> None:
     listening for receives a message.
     """
     for mod in _registered_topics[topic]:
-        mod[topic](data)
+        mod.TwitchTopics[topic](data)
 
 
 class TwitchLogin(ModMenu.SDKMod):
@@ -470,14 +500,14 @@ class TwitchLogin(ModMenu.SDKMod):
         self._mod_menu_item = pc.GetFrontendMovie().MarketplaceMovie.GetSelectedObject()
 
         if action == "Login":
-            _authorization.InitiateLogin([scope.Scope for scope in _registered_scopes])
+            _authorization.InitiateLogin(_registered_scopes)
 
         elif action == "Logout":
             _authorization.Logout()
 
         elif action == "Re-Login":
             _authorization.Logout()
-            _authorization.InitiateLogin([scope.Scope for scope in _registered_scopes])
+            _authorization.InitiateLogin(_registered_scopes)
 
         elif action == "Reconnect":
             _authorization.Validate(force=True)

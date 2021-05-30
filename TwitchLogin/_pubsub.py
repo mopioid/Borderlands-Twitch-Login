@@ -95,19 +95,21 @@ def _poll_websockets():
         # Create a dictionary of the current topics with connected websockets, keyed by their
         # websockets' file descriptors.
         topic_handles: Dict[int, _topic_websocket] = {
-            topic.websocket.sock.fileno() : topic
-            for topic in _topic_websockets.values() if topic.websocket.connected
+            topic.sock.fileno() : topic
+            for topic in _topic_websockets.values() if topic.connected
         }
 
         # Wait on the readability of the connected file descriptors for a quarter of a second.
-        readable_handles, _, _ = select(topic_handles, [], [], 0.25)
-        if len(readable_handles) != 0:
-            log.debug("Received readable events on handles: %s", topic_handles)
+        if len(topic_handles) > 0:
+            readable_handles, _, _ = select(topic_handles, [], [], 0.25)
+    
+            if len(readable_handles) != 0:
+                log.debug("Received readable events on handles: %s", topic_handles)
 
-            # For each socket returned as readable, tell its topic object to receive the message.
-            for handle in readable_handles:
-                topic = topic_handles[handle]
-                topic.receive_message()
+                # For each socket returned as readable, tell its topic to receive the message.
+                for handle in readable_handles:
+                    topic = topic_handles[handle]
+                    topic.receive_message()
 
         for topic in _topic_websockets.values():
             topic.poll_status()
@@ -325,6 +327,7 @@ class _topic_websocket(websocket.WebSocket):
             # If no error, we are now fully connected and subscribed.
             if error == "":
                 log.info("Received positive RESPONSE to listen, connected")
+                self.timeout = float('inf')
                 self.state = _topic_websocket.states.connected
 
             # If the server has rejected our authentication, then we likely don't have authorization
@@ -355,11 +358,11 @@ class _topic_websocket(websocket.WebSocket):
         message_data = message.get("data")
         if message_data is None:
             self.log.warn("Received unknown message type with no data field: %s", message)
-            return
-
 
         # Finally, if we have data that is not of any of the above special message types, submit it
         # to be sent to mods via the API on the main thread.
-        _utilities.MainThreadQueue.append(
-            lambda: MessageCallback(self.topic, message_data)
-        )
+        else:
+            log.info("Dispatching message to mod callbacks")
+            _utilities.MainThreadQueue.append(
+                lambda: MessageCallback(self.topic, message_data)
+            )

@@ -138,7 +138,7 @@ def Delete(Path: str, Params: Any = None, *, Callback: Callable[[int, Dict[str, 
             two arguments - An `int` representing the status code of the response, and a `dict`
             containing the content of the response, if any.
     """
-    Request("DELETE", Path, Params, None, Callback)
+    Request("DELETE", Path, Params, None, Callback=Callback)
 
 def Get(Path: str, Params: Any = None, *, Callback: Callable[[int, Dict[str, Any]], None]) -> None:
     """
@@ -164,7 +164,7 @@ def Get(Path: str, Params: Any = None, *, Callback: Callable[[int, Dict[str, Any
             two arguments - An `int` representing the status code of the response, and a `dict`
             containing the content of the response, if any.
     """
-    Request("GET", Path, Params, None, Callback)
+    Request("GET", Path, Params, None, Callback=Callback)
 
 def Patch(Path: str, Params: Any = None, Data: Any = None, *, Callback: Callable[[int, Dict[str, Any]], None]) -> None:
     """
@@ -194,7 +194,7 @@ def Patch(Path: str, Params: Any = None, Data: Any = None, *, Callback: Callable
             two arguments - An `int` representing the status code of the response, and a `dict`
             containing the content of the response, if any.
     """
-    Request("PATCH", Path, Params, Data, Callback)
+    Request("PATCH", Path, Params, Data, Callback=Callback)
 
 def Post(Path: str, Params: Any = None, Data: Any = None, *, Callback: Callable[[int, Dict[str, Any]], None]) -> None:
     """
@@ -224,7 +224,7 @@ def Post(Path: str, Params: Any = None, Data: Any = None, *, Callback: Callable[
             two arguments - An `int` representing the status code of the response, and a `dict`
             containing the content of the response, if any.
     """
-    Request("POST", Path, Params, Data, Callback)
+    Request("POST", Path, Params, Data, Callback=Callback)
 
 def Put(Path: str, Params: Any = None, Data: Any = None, *, Callback: Callable[[int, Dict[str, Any]], None]) -> None:
     """
@@ -254,4 +254,4 @@ def Put(Path: str, Params: Any = None, Data: Any = None, *, Callback: Callable[[
             two arguments - An `int` representing the status code of the response, and a `dict`
             containing the content of the response, if any.
     """
-    Request("PUT", Path, Params, Data, Callback)
+    Request("PUT", Path, Params, Data, Callback=Callback)

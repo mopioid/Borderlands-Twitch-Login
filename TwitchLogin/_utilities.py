@@ -22,7 +22,7 @@ log: logging.Logger = logging.getLogger("TwitchLogin")
 log.propagate = False
 
 # Module-wide logging level may be assigned here:
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 # Log messages should begin with the logger name, followed by the time, including seconds to three
 # decimal places.
@@ -104,7 +104,6 @@ def _tick(caller: unrealsdk.UObject, function: unrealsdk.UFunction, params: unre
     """
     while len(MainThreadQueue) != 0:
         MainThreadQueue.popleft()()
-
     return True
 
 unrealsdk.RunHook("WillowGame.WillowGameViewportClient.Tick", "TwitchLogin", _tick)
