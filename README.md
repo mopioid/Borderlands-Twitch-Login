@@ -205,7 +205,7 @@ TwitchLogin.Requests.Post(
 
 Requests to the Twitch API are provided via the `TwitchLogin.Requests` submodule. Requests are performed asynchronously; when making a request, a mod specifies a callback function to be invoked when the request completes. The results of the request are passed as parameters to the provided callback.
 
-The scopes required for a given Twitch API request must have been registered for as per the [`TwitchScopes` attribute](#twitchscopes-attribute) and [`RegisterMod` method](#twitchlogin-registermod-method) described above. The user must have then logged in upon being notified of their requirement to do so. Without the authorized scope, the Twitch API will respond to the request with an error.
+The scopes required for a given Twitch API request must have been registered for as per the [`TwitchScopes` attribute](#twitchscopes-attribute) and [`RegisterMod` method](#twitchloginregistermod-method) described above. The user must have then logged in upon being notified of their requirement to do so. Without the authorized scope, the Twitch API will respond to the request with an error.
 
 Twitch Login supports `GET`, `POST`, `PUT`, `PATCH`, and `DELETE` requests. These request types may be performed via convenient methods: `TwitchLogin.Requests.Get`, `TwitchLogin.Requests.Post`, `TwitchLogin.Requests.Put`, `TwitchLogin.Requests.Patch`, and `TwitchLogin.Requests.Delete`. Each of these methods accepts the following arguments:
 
